@@ -63,7 +63,8 @@ To let other people test as receiver, deploy backend + frontend and share the fr
 ### 2) Deploy frontend on Vercel
 
 1. In Vercel, click **Add New** -> **Project** and import the same repo.
-2. Set **Root Directory** to `frontend`.
+2. (Recommended) Set **Root Directory** to `frontend`.
+   - If you deploy from repo root, this repo also includes `vercel.json` so it still builds the `frontend/` app.
 3. Add environment variable:
    - `VITE_SIGNALING_URL` = your Render backend URL
 4. Deploy project.
