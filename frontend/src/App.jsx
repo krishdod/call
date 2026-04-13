@@ -298,17 +298,26 @@ export default function App() {
       setStatus("Enter name and username (at least 3 chars).");
       return;
     }
-    try {
-      await getLocalMedia();
-      socketRef.current.connect();
-      socketRef.current.emit("register", {
+    setStatus("Connecting...");
+    const socket = socketRef.current;
+    if (!socket) return;
+
+    const sendRegister = () => {
+      socket.emit("register", {
         userId,
         displayName: displayName.trim(),
         shareUserId
       });
-    } catch {
-      setStatus("Microphone permission is required for calls.");
+      setStatus("Registering...");
+    };
+
+    if (socket.connected) {
+      sendRegister();
+      return;
     }
+
+    socket.once("connect", sendRegister);
+    socket.connect();
   }
 
   function placeCall() {
