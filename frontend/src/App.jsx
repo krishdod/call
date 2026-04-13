@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from "react";
-import { io } from "socket.io-client";
 
 const SIGNALING_URL = import.meta.env.VITE_SIGNALING_URL || "http://localhost:4000";
 const ICE_SERVERS = [
@@ -15,7 +14,8 @@ if (import.meta.env.VITE_TURN_URL) {
   });
 }
 
-const RTC_CONFIG = { iceServers: ICE_SERVERS, iceCandidatePoolSize: 10 };
+/** Pool size 0 = faster first connection; increase only if you see ICE failures */
+const RTC_CONFIG = { iceServers: ICE_SERVERS, iceCandidatePoolSize: 0 };
 
 export default function App() {
   const [displayName, setDisplayName] = useState("");
@@ -99,11 +99,74 @@ export default function App() {
     ringTimerRef.current = setInterval(() => playBeep(520, 140), 1300);
   }
 
-  useEffect(() => {
-    const socket = io(SIGNALING_URL, { autoConnect: false });
-    socketRef.current = socket;
+  async function getLocalMedia() {
+    if (!localStreamRef.current) {
+      localStreamRef.current = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+      if (localAudioRef.current) {
+        localAudioRef.current.srcObject = localStreamRef.current;
+      }
+    }
+    return localStreamRef.current;
+  }
 
-    socket.on("connect_error", () => setStatus("Cannot reach server. Start backend on :4000"));
+  async function ensurePeerConnection(remoteSocketId) {
+    if (peerConnectionRef.current) return peerConnectionRef.current;
+
+    const pc = new RTCPeerConnection(RTC_CONFIG);
+    peerConnectionRef.current = pc;
+
+    const localStream = await getLocalMedia();
+    localStream.getTracks().forEach((track) => pc.addTrack(track, localStream));
+
+    pc.onicecandidate = (event) => {
+      if (!event.candidate) return;
+      socketRef.current?.emit("webrtc-ice-candidate", {
+        to: remoteSocketId,
+        candidate: event.candidate
+      });
+    };
+
+    pc.ontrack = (event) => {
+      if (remoteAudioRef.current) {
+        remoteAudioRef.current.srcObject = event.streams[0];
+        remoteAudioRef.current.play().catch(() => {
+          setStatus("Connected, but audio playback is blocked. Tap anywhere and try again.");
+        });
+      }
+    };
+
+    pc.onconnectionstatechange = () => {
+      setConnectionState(pc.connectionState);
+      if (pc.connectionState === "connected") {
+        setStatus("In call");
+      }
+      if (pc.connectionState === "failed" || pc.connectionState === "disconnected") {
+        setStatus("Connection dropped. If users are on different networks, add TURN server env vars.");
+      }
+    };
+
+    pc.oniceconnectionstatechange = () => {
+      if (pc.iceConnectionState === "failed") {
+        setStatus("Could not establish media path. TURN server may be required.");
+      }
+    };
+
+    return pc;
+  }
+
+  function closePeerConnection() {
+    peerConnectionRef.current?.close();
+    peerConnectionRef.current = null;
+    if (remoteAudioRef.current) {
+      remoteAudioRef.current.srcObject = null;
+    }
+    setConnectionState("idle");
+  }
+
+  function attachSocketListeners(socket) {
+    socket.on("connect_error", () =>
+      setStatus("Cannot reach server. Check internet or try again in a moment.")
+    );
 
     socket.on("registered", ({ userId }) => {
       setRegistered(true);
@@ -113,9 +176,7 @@ export default function App() {
 
     socket.on("online-users", (users) => {
       setOnlineUsers(users);
-      setSelectedUserId((current) =>
-        users.some((u) => u.userId === current && u.userId !== myUserId) ? current : ""
-      );
+      setSelectedUserId((current) => (users.some((u) => u.userId === current) ? current : ""));
     });
 
     socket.on("register-failed", () =>
@@ -213,77 +274,6 @@ export default function App() {
       setStatus("Call ended.");
       stopRingFeedback();
     });
-
-    return () => {
-      stopRingFeedback();
-      socket.disconnect();
-      cleanupAllMedia();
-      audioContextRef.current?.close();
-    };
-  }, []);
-
-  async function getLocalMedia() {
-    if (!localStreamRef.current) {
-      localStreamRef.current = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
-      if (localAudioRef.current) {
-        localAudioRef.current.srcObject = localStreamRef.current;
-      }
-    }
-    return localStreamRef.current;
-  }
-
-  async function ensurePeerConnection(remoteSocketId) {
-    if (peerConnectionRef.current) return peerConnectionRef.current;
-
-    const pc = new RTCPeerConnection(RTC_CONFIG);
-    peerConnectionRef.current = pc;
-
-    const localStream = await getLocalMedia();
-    localStream.getTracks().forEach((track) => pc.addTrack(track, localStream));
-
-    pc.onicecandidate = (event) => {
-      if (!event.candidate) return;
-      socketRef.current?.emit("webrtc-ice-candidate", {
-        to: remoteSocketId,
-        candidate: event.candidate
-      });
-    };
-
-    pc.ontrack = (event) => {
-      if (remoteAudioRef.current) {
-        remoteAudioRef.current.srcObject = event.streams[0];
-        remoteAudioRef.current.play().catch(() => {
-          setStatus("Connected, but audio playback is blocked. Tap anywhere and try again.");
-        });
-      }
-    };
-
-    pc.onconnectionstatechange = () => {
-      setConnectionState(pc.connectionState);
-      if (pc.connectionState === "connected") {
-        setStatus("In call");
-      }
-      if (pc.connectionState === "failed" || pc.connectionState === "disconnected") {
-        setStatus("Connection dropped. If users are on different networks, add TURN server env vars.");
-      }
-    };
-
-    pc.oniceconnectionstatechange = () => {
-      if (pc.iceConnectionState === "failed") {
-        setStatus("Could not establish media path. TURN server may be required.");
-      }
-    };
-
-    return pc;
-  }
-
-  function closePeerConnection() {
-    peerConnectionRef.current?.close();
-    peerConnectionRef.current = null;
-    if (remoteAudioRef.current) {
-      remoteAudioRef.current.srcObject = null;
-    }
-    setConnectionState("idle");
   }
 
   function cleanupAllMedia() {
@@ -292,32 +282,58 @@ export default function App() {
     localStreamRef.current = null;
   }
 
+  useEffect(() => {
+    return () => {
+      stopRingFeedback();
+      socketRef.current?.disconnect();
+      socketRef.current = null;
+      cleanupAllMedia();
+      audioContextRef.current?.close();
+    };
+  }, []);
+
+  async function ensureSocket() {
+    if (socketRef.current) return socketRef.current;
+    const { io } = await import("socket.io-client");
+    const socket = io(SIGNALING_URL, {
+      autoConnect: false,
+      transports: ["websocket", "polling"],
+      timeout: 20000,
+      reconnectionAttempts: 5
+    });
+    attachSocketListeners(socket);
+    socketRef.current = socket;
+    return socket;
+  }
+
   async function doRegister() {
     const userId = myUserId.trim().toLowerCase();
     if (!displayName.trim() || userId.length < 3) {
       setStatus("Enter name and username (at least 3 chars).");
       return;
     }
-    setStatus("Connecting...");
-    const socket = socketRef.current;
-    if (!socket) return;
+    setStatus("Connecting…");
+    try {
+      const socket = await ensureSocket();
+      const sendRegister = () => {
+        socket.emit("register", {
+          userId,
+          displayName: displayName.trim(),
+          shareUserId
+        });
+        setStatus("Registering…");
+      };
 
-    const sendRegister = () => {
-      socket.emit("register", {
-        userId,
-        displayName: displayName.trim(),
-        shareUserId
-      });
-      setStatus("Registering...");
-    };
+      if (socket.connected) {
+        sendRegister();
+        return;
+      }
 
-    if (socket.connected) {
-      sendRegister();
-      return;
+      socket.once("connect", sendRegister);
+      socket.connect();
+    } catch {
+      setStatus("Could not load network module. Check connection and try again.");
     }
-
-    socket.once("connect", sendRegister);
-    socket.connect();
   }
 
   function placeCall() {

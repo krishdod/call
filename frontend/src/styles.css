@@ -8,13 +8,66 @@ body {
   background: radial-gradient(circle at 20% 20%, #1e293b 0%, #020617 45%, #000 100%);
   color: #f8fafc;
   min-height: 100vh;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.app-shell {
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  padding: max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right))
+    max(16px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+  background: radial-gradient(circle at 20% 20%, #1e293b 0%, #020617 45%, #000 100%);
+}
+
+.app-shell-inner {
+  text-align: center;
+}
+
+.app-shell-logo {
+  width: 48px;
+  height: 48px;
+  margin: 0 auto 12px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #0ea5e9, #6366f1);
+  animation: pulseLogo 1.2s ease-in-out infinite;
+}
+
+.app-shell-text {
+  margin: 0;
+  font-size: 0.95rem;
+  color: #94a3b8;
+}
+
+.app-shell-sub {
+  margin: 8px 0 0;
+  font-size: 0.8rem;
+  color: #64748b;
+  max-width: 260px;
+  margin-left: auto;
+  margin-right: auto;
+  line-height: 1.35;
+}
+
+@keyframes pulseLogo {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.85;
+    transform: scale(0.96);
+  }
 }
 
 .phone {
   max-width: 960px;
   margin: 0 auto;
   min-height: 100vh;
-  padding: 18px 16px 32px;
+  min-height: 100dvh;
+  padding: max(18px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right))
+    max(32px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -48,6 +101,7 @@ body {
   padding: 16px;
   margin-bottom: 10px;
   box-shadow: 0 10px 30px rgba(2, 6, 23, 0.45);
+  contain: layout style;
 }
 
 .setup label {
@@ -403,9 +457,17 @@ body {
   .logs-card { grid-area: logs; }
 }
 
+@media (max-width: 768px) {
+  .card {
+    backdrop-filter: none;
+    background: linear-gradient(180deg, rgba(30, 41, 59, 0.95), rgba(15, 23, 42, 0.98));
+  }
+}
+
 @media (max-width: 520px) {
   .phone {
-    padding: 14px 12px 22px;
+    padding: max(14px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right))
+      max(22px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
   }
 
   .card {
@@ -423,6 +485,18 @@ body {
   .incoming-avatar-wrap {
     width: 82px;
     height: 82px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fade-in,
+  .pop-in,
+  .slide-up,
+  .pulse,
+  .incoming-avatar-ripple,
+  .incoming-avatar-ripple.delayed,
+  .app-shell-logo {
+    animation: none !important;
   }
 }
 

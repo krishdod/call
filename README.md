@@ -81,3 +81,14 @@ To let other people test as receiver, deploy backend + frontend and share the fr
 - If users cannot see each other, check both are on same frontend URL and backend is awake.
 - Render free services can sleep; first request may take ~30-60s.
 - If calls fail, verify `VITE_SIGNALING_URL` is set correctly in Vercel and redeploy.
+
+## Why the first load can feel slow
+
+- **Vercel** serves the JS bundle; the first visit downloads and parses it (normal).
+- **Render** free tier may **cold-start** the API: the first socket connection after idle can take 30–60 seconds.
+- The app **loads the real-time library only after you tap Continue**, so the landing screen should feel lighter.
+- After one visit, repeat loads are usually faster (browser cache + warm backend).
+
+### Auto-wake backend on open
+
+When someone opens the app, the frontend immediately requests `GET {VITE_SIGNALING_URL}/health` in the background so a sleeping Render instance starts waking **as soon as the page loads** (before you tap Continue). It does not guarantee instant readiness, but it overlaps cold start with loading the UI.
