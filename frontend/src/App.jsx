@@ -348,7 +348,7 @@ export default function App() {
         </section>
       ) : (
         <>
-          <section className="card">
+          <section className="card online-card fade-in">
             <h2 className="logs-title">Online users</h2>
             <select
               value={selectedUserId}
@@ -365,7 +365,7 @@ export default function App() {
           </section>
 
           {incoming ? (
-            <section className="card incoming-banner">
+            <section className="card incoming-banner pop-in">
               <p>
                 <strong>{incoming.callerLabel ?? `${incoming.fromName} (@${incoming.fromUserId})`}</strong>
               </p>
@@ -380,7 +380,7 @@ export default function App() {
             </section>
           ) : null}
 
-          <section className="call-bar">
+          <section className="call-bar slide-up">
             <button
               type="button"
               className={`btn-call ${outgoingRinging ? "pulse" : ""}`}
@@ -401,7 +401,7 @@ export default function App() {
           <p className={`status ${inCall ? "status-live" : ""}`}>{status}</p>
           <p className="conn-state">Connection: {connectionState}</p>
 
-          <section className="card">
+          <section className="card logs-card fade-in">
             <h2 className="logs-title">Recent activity</h2>
             <button type="button" className="btn-ghost" onClick={fetchLogs}>
               Refresh
