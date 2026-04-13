@@ -2,7 +2,20 @@ import { useEffect, useRef, useState } from "react";
 import { io } from "socket.io-client";
 
 const SIGNALING_URL = import.meta.env.VITE_SIGNALING_URL || "http://localhost:4000";
-const STUN_SERVERS = { iceServers: [{ urls: "stun:stun.l.google.com:19302" }] };
+const ICE_SERVERS = [
+  { urls: "stun:stun.l.google.com:19302" },
+  { urls: "stun:stun1.l.google.com:19302" }
+];
+
+if (import.meta.env.VITE_TURN_URL) {
+  ICE_SERVERS.push({
+    urls: import.meta.env.VITE_TURN_URL,
+    username: import.meta.env.VITE_TURN_USERNAME || undefined,
+    credential: import.meta.env.VITE_TURN_CREDENTIAL || undefined
+  });
+}
+
+const RTC_CONFIG = { iceServers: ICE_SERVERS, iceCandidatePoolSize: 10 };
 
 export default function App() {
   const [displayName, setDisplayName] = useState("");
@@ -16,6 +29,7 @@ export default function App() {
   const [inCall, setInCall] = useState(false);
   const [incoming, setIncoming] = useState(null);
   const [selectedUserId, setSelectedUserId] = useState("");
+  const [connectionState, setConnectionState] = useState("idle");
 
   const [logs, setLogs] = useState([]);
 
@@ -154,7 +168,7 @@ export default function App() {
   async function ensurePeerConnection(remoteSocketId) {
     if (peerConnectionRef.current) return peerConnectionRef.current;
 
-    const pc = new RTCPeerConnection(STUN_SERVERS);
+    const pc = new RTCPeerConnection(RTC_CONFIG);
     peerConnectionRef.current = pc;
 
     const localStream = await getLocalMedia();
@@ -171,12 +185,25 @@ export default function App() {
     pc.ontrack = (event) => {
       if (remoteAudioRef.current) {
         remoteAudioRef.current.srcObject = event.streams[0];
+        remoteAudioRef.current.play().catch(() => {
+          setStatus("Connected, but audio playback is blocked. Tap anywhere and try again.");
+        });
       }
     };
 
     pc.onconnectionstatechange = () => {
+      setConnectionState(pc.connectionState);
+      if (pc.connectionState === "connected") {
+        setStatus("In call");
+      }
       if (pc.connectionState === "failed" || pc.connectionState === "disconnected") {
-        setStatus("Connection dropped");
+        setStatus("Connection dropped. If users are on different networks, add TURN server env vars.");
+      }
+    };
+
+    pc.oniceconnectionstatechange = () => {
+      if (pc.iceConnectionState === "failed") {
+        setStatus("Could not establish media path. TURN server may be required.");
       }
     };
 
@@ -189,6 +216,7 @@ export default function App() {
     if (remoteAudioRef.current) {
       remoteAudioRef.current.srcObject = null;
     }
+    setConnectionState("idle");
   }
 
   function cleanupAllMedia() {
@@ -353,19 +381,25 @@ export default function App() {
           ) : null}
 
           <section className="call-bar">
-            <button type="button" className="btn-call" onClick={placeCall} disabled={outgoingRinging || inCall}>
+            <button
+              type="button"
+              className={`btn-call ${outgoingRinging ? "pulse" : ""}`}
+              onClick={placeCall}
+              disabled={outgoingRinging || inCall}
+            >
               {outgoingRinging ? "Ringing…" : "Call"}
             </button>
             <button
               type="button"
-              className="btn-hangup"
+              className={`btn-hangup ${incoming ? "pulse" : ""}`}
               onClick={hangUp}
             >
               End
             </button>
           </section>
 
-          <p className="status">{status}</p>
+          <p className={`status ${inCall ? "status-live" : ""}`}>{status}</p>
+          <p className="conn-state">Connection: {connectionState}</p>
 
           <section className="card">
             <h2 className="logs-title">Recent activity</h2>
@@ -387,8 +421,8 @@ export default function App() {
         </>
       )}
 
-      <audio ref={localAudioRef} autoPlay muted />
-      <audio ref={remoteAudioRef} autoPlay />
+      <audio ref={localAudioRef} autoPlay muted playsInline />
+      <audio ref={remoteAudioRef} autoPlay playsInline />
     </main>
   );
 }
