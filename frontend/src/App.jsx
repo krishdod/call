@@ -41,6 +41,63 @@ export default function App() {
 
   const remoteSocketRef = useRef(null);
   const pendingCalleeRef = useRef(null);
+  const ringTimerRef = useRef(null);
+  const audioContextRef = useRef(null);
+  const vibrationTimerRef = useRef(null);
+
+  function stopRingFeedback() {
+    if (ringTimerRef.current) {
+      clearInterval(ringTimerRef.current);
+      ringTimerRef.current = null;
+    }
+    if (vibrationTimerRef.current) {
+      clearInterval(vibrationTimerRef.current);
+      vibrationTimerRef.current = null;
+    }
+    if (navigator.vibrate) navigator.vibrate(0);
+  }
+
+  function playBeep(frequency = 880, durationMs = 180) {
+    try {
+      if (!audioContextRef.current) {
+        audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
+      }
+      const ctx = audioContextRef.current;
+      if (ctx.state === "suspended") ctx.resume();
+      const oscillator = ctx.createOscillator();
+      const gain = ctx.createGain();
+      oscillator.type = "sine";
+      oscillator.frequency.setValueAtTime(frequency, ctx.currentTime);
+      gain.gain.setValueAtTime(0.0001, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.18, ctx.currentTime + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + durationMs / 1000);
+      oscillator.connect(gain);
+      gain.connect(ctx.destination);
+      oscillator.start();
+      oscillator.stop(ctx.currentTime + durationMs / 1000);
+    } catch {
+      // Some browsers may block autoplay audio until interaction.
+    }
+  }
+
+  function startIncomingRingFeedback() {
+    stopRingFeedback();
+    playBeep(790, 200);
+    ringTimerRef.current = setInterval(() => {
+      playBeep(790, 180);
+      setTimeout(() => playBeep(980, 180), 220);
+    }, 1500);
+    if (navigator.vibrate) {
+      navigator.vibrate([350, 200, 350]);
+      vibrationTimerRef.current = setInterval(() => navigator.vibrate([300, 180, 300]), 1600);
+    }
+  }
+
+  function startOutgoingRingFeedback() {
+    stopRingFeedback();
+    playBeep(520, 140);
+    ringTimerRef.current = setInterval(() => playBeep(520, 140), 1300);
+  }
 
   useEffect(() => {
     const socket = io(SIGNALING_URL, { autoConnect: false });
@@ -82,22 +139,26 @@ export default function App() {
       pendingCalleeRef.current = targetSocketId;
       setOutgoingRinging(true);
       setStatus("Ringing…");
+      startOutgoingRingFeedback();
     });
 
     socket.on("incoming-call", ({ fromUserId, fromName, callerLabel, fromSocketId }) => {
       setIncoming({ fromUserId, fromName, callerLabel, fromSocketId });
       setStatus(`Incoming call from ${callerLabel ?? `${fromName} (@${fromUserId})`}`);
+      startIncomingRingFeedback();
     });
 
     socket.on("incoming-cancelled", () => {
       setIncoming(null);
       setStatus("Missed / cancelled call.");
+      stopRingFeedback();
     });
 
     socket.on("remote-answered", async ({ calleeSocketId }) => {
       remoteSocketRef.current = calleeSocketId;
       setOutgoingRinging(false);
       setStatus("Connecting…");
+      stopRingFeedback();
       try {
         const pc = await ensurePeerConnection(calleeSocketId);
         const offer = await pc.createOffer();
@@ -114,6 +175,7 @@ export default function App() {
       pendingCalleeRef.current = null;
       closePeerConnection();
       setStatus("Call declined.");
+      stopRingFeedback();
     });
 
     socket.on("webrtc-offer", async ({ from, fromName, sdp }) => {
@@ -126,12 +188,14 @@ export default function App() {
       remoteSocketRef.current = from;
       setIncoming(null);
       setInCall(true);
+      stopRingFeedback();
     });
 
     socket.on("webrtc-answer", async ({ sdp }) => {
       await peerConnectionRef.current?.setRemoteDescription(sdp);
       setStatus("In call");
       setInCall(true);
+      stopRingFeedback();
     });
 
     socket.on("webrtc-ice-candidate", async ({ candidate }) => {
@@ -147,11 +211,14 @@ export default function App() {
       setInCall(false);
       setIncoming(null);
       setStatus("Call ended.");
+      stopRingFeedback();
     });
 
     return () => {
+      stopRingFeedback();
       socket.disconnect();
       cleanupAllMedia();
+      audioContextRef.current?.close();
     };
   }, []);
 
@@ -270,6 +337,7 @@ export default function App() {
     socketRef.current.emit("reject-call", { callerSocketId: incoming.fromSocketId });
     setIncoming(null);
     setStatus("Call declined.");
+    stopRingFeedback();
   }
 
   function hangUp() {
@@ -278,6 +346,7 @@ export default function App() {
       setOutgoingRinging(false);
       pendingCalleeRef.current = null;
       setStatus("Cancelled.");
+      stopRingFeedback();
       return;
     }
     if (incoming) {
@@ -292,6 +361,7 @@ export default function App() {
     remoteSocketRef.current = null;
     setInCall(false);
     setStatus("Call ended.");
+    stopRingFeedback();
   }
 
   async function fetchLogs() {
@@ -366,6 +436,11 @@ export default function App() {
 
           {incoming ? (
             <section className="card incoming-banner pop-in">
+              <div className="incoming-avatar-wrap">
+                <div className="incoming-avatar-ripple" />
+                <div className="incoming-avatar-ripple delayed" />
+                <div className="incoming-avatar">{incoming.fromName?.[0]?.toUpperCase() ?? "U"}</div>
+              </div>
               <p>
                 <strong>{incoming.callerLabel ?? `${incoming.fromName} (@${incoming.fromUserId})`}</strong>
               </p>

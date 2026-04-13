@@ -237,11 +237,45 @@ body {
 
 .incoming-banner {
   margin-bottom: 12px;
+  text-align: center;
 }
 
 .incoming-banner p {
   margin: 0 0 12px;
   text-align: center;
+}
+
+.incoming-avatar-wrap {
+  position: relative;
+  width: 92px;
+  height: 92px;
+  margin: 2px auto 14px;
+}
+
+.incoming-avatar {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  display: grid;
+  place-items: center;
+  font-size: 1.8rem;
+  font-weight: 700;
+  color: #e2e8f0;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #0ea5e9, #6366f1);
+  border: 2px solid rgba(255, 255, 255, 0.35);
+}
+
+.incoming-avatar-ripple {
+  position: absolute;
+  inset: -4px;
+  border-radius: 999px;
+  border: 2px solid rgba(56, 189, 248, 0.55);
+  animation: ripple 1.9s ease-out infinite;
+}
+
+.incoming-avatar-ripple.delayed {
+  animation-delay: 0.95s;
 }
 
 .row.incoming-actions {
@@ -335,6 +369,17 @@ body {
   to { opacity: 1; transform: translateY(0); }
 }
 
+@keyframes ripple {
+  0% {
+    transform: scale(0.8);
+    opacity: 0.8;
+  }
+  100% {
+    transform: scale(1.5);
+    opacity: 0;
+  }
+}
+
 @media (min-width: 820px) {
   .phone {
     display: grid;
@@ -356,6 +401,29 @@ body {
   .status { grid-area: status; margin-bottom: 0; }
   .conn-state { grid-column: 1 / -1; }
   .logs-card { grid-area: logs; }
+}
+
+@media (max-width: 520px) {
+  .phone {
+    padding: 14px 12px 22px;
+  }
+
+  .card {
+    border-radius: 14px;
+    padding: 14px;
+  }
+
+  .btn-call,
+  .btn-hangup {
+    width: 72px;
+    height: 72px;
+    font-size: 0.95rem;
+  }
+
+  .incoming-avatar-wrap {
+    width: 82px;
+    height: 82px;
+  }
 }
 
 .logs-title {
