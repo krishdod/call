@@ -82,6 +82,76 @@ To let other people test as receiver, deploy backend + frontend and share the fr
 - Render free services can sleep; first request may take ~30-60s.
 - If calls fail, verify `VITE_SIGNALING_URL` is set correctly in Vercel and redeploy.
 
+## One codebase: mobile + desktop
+
+The `frontend/` app is now set up to be packaged for both mobile (Capacitor) and desktop (Electron) while reusing the same React code.
+
+### Root shortcut commands
+
+From repo root:
+
+```bash
+npm install
+npm run dev
+```
+
+Other root-level shortcuts:
+
+```bash
+npm run mobile:prepare
+npm run desktop:dev
+npm run desktop:build
+```
+
+### Mobile first (Capacitor)
+
+From `frontend/`:
+
+```bash
+npm run mobile:prepare
+```
+
+Then add/open native projects:
+
+```bash
+npm run cap:add:android
+npx cap open android
+```
+
+For iOS (requires macOS + Xcode):
+
+```bash
+npm run cap:add:ios
+npx cap open ios
+```
+
+After frontend changes, rebuild + sync:
+
+```bash
+npm run mobile:prepare
+```
+
+### Desktop (Electron)
+
+From `frontend/`:
+
+```bash
+npm run desktop:dev
+```
+
+Create distributable app build:
+
+```bash
+npm run desktop:dist
+```
+
+### Backend URL handling for web/mobile/desktop
+
+- If `VITE_SIGNALING_URL` is set in `frontend/.env`, it is always used.
+- On localhost dev, app defaults to `http://localhost:4000`.
+- For packaged/mobile/desktop builds without `VITE_SIGNALING_URL`, the setup screen shows a **Signaling server URL** field and saves it for next launches.
+- For production builds, set `VITE_SIGNALING_URL` before building to avoid manual entry.
+
 ## Why the first load can feel slow
 
 - **Vercel** serves the JS bundle; the first visit downloads and parses it (normal).

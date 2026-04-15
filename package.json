@@ -1,0 +1,19 @@
+{
+  "name": "free-calling-monorepo",
+  "private": true,
+  "scripts": {
+    "dev:backend": "npm --prefix backend run dev",
+    "dev:frontend": "npm --prefix frontend run dev",
+    "dev": "concurrently -k \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "build:frontend": "npm --prefix frontend run build",
+    "mobile:prepare": "npm --prefix frontend run mobile:prepare",
+    "mobile:android:add": "npm --prefix frontend run cap:add:android",
+    "mobile:ios:add": "npm --prefix frontend run cap:add:ios",
+    "desktop:dev": "npm --prefix frontend run desktop:dev",
+    "desktop:build": "npm --prefix frontend run desktop:build",
+    "desktop:dist": "npm --prefix frontend run desktop:dist"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1"
+  }
+}
